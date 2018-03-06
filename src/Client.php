@@ -32,7 +32,14 @@ class Client extends \GuzzleHttp\Client
 
         // 2. 发起请求
         $sTime = microtime(1);
-        $result = parent::request($method, $uri, $options);
+        $exception = null;
+        $error = '';
+        try {
+            $result = parent::request($method, $uri, $options);
+        } catch (\Exception $e) {
+            $error = $e->getMessage();
+            $exception = $e;
+        }
         $rTime = microtime(1);
 
         // 3. 从响应结果中获取子节点的SPAN_ID
@@ -46,8 +53,8 @@ class Client extends \GuzzleHttp\Client
         $time = $rTime - $sTime;
 
         // 5. LOG
-        Di::getDefault()->getLogger('trace')->debug(sprintf("[HttpClient] traceId=%s, spanId=%s, childSpanId=%s, ss=%s, sr=%s, t=%s, uri=%s",
-            $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, $uri
+        Di::getDefault()->getLogger('trace')->debug(sprintf("[HttpClient] traceId=%s, spanId=%s, childSpanId=%s, ss=%s, sr=%s, t=%s, uri=%s, error=%s",
+            $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, $uri, $error
         ));
 
         // 6. 发送到中心
@@ -62,6 +69,7 @@ class Client extends \GuzzleHttp\Client
                     'cs'          => $sTime,
                     'cr'          => $rTime,
                     'uri'         => $uri,
+                    'error'       => $error,
                 ]);
             }
         } catch (\Exception $e) {
@@ -69,6 +77,10 @@ class Client extends \GuzzleHttp\Client
         }
 
         // 7. 返回结果
-        return $result;
+        if ($exception !== null) {
+            throw $exception;
+        } else {
+            return $result;
+        }
     }
 }
