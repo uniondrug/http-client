@@ -5,13 +5,20 @@
 
 namespace Uniondrug\HttpClient;
 
-use GuzzleHttp\Psr7\Response;
 use Phalcon\Di;
 use Phalcon\Http\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
 class Client extends \GuzzleHttp\Client
 {
+    /**
+     * @param        $method
+     * @param string $uri
+     * @param array  $options
+     *
+     * @return mixed|null|\Psr\Http\Message\ResponseInterface
+     * @throws \Exception
+     */
     public function request($method, $uri = '', array $options = [])
     {
         /* @var RequestInterface $request */
