@@ -5,8 +5,10 @@
 
 namespace Uniondrug\HttpClient;
 
+use GuzzleHttp\Psr7\Response;
 use Phalcon\Di;
 use Phalcon\Http\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class Client extends \GuzzleHttp\Client
 {
@@ -16,16 +18,16 @@ class Client extends \GuzzleHttp\Client
         $request = Di::getDefault()->getShared('request');
 
         // 1. 提取当前的Trace信息，并且附加在请求头中
-        $traceId = $request->getHeader('X_TRACE_ID');
+        $traceId = $request->getHeader('X-TRACE-ID');
         if ($traceId) {
-            $options['headers']['X_TRACE_ID'] = $traceId;
+            $options['headers']['X-TRACE-ID'] = $traceId;
         } else {
             $traceId = '';
         }
 
-        $spanId = $request->getHeader('X_SPAN_ID');
+        $spanId = $request->getHeader('X-SPAN-ID');
         if ($spanId) {
-            $options['headers']['X_SPAN_ID'] = $spanId;
+            $options['headers']['X-SPAN-ID'] = $spanId;
         } else {
             $spanId = '';
         }
@@ -34,6 +36,7 @@ class Client extends \GuzzleHttp\Client
         $sTime = microtime(1);
         $exception = null;
         $error = '';
+        $result = null;
         try {
             $result = parent::request($method, $uri, $options);
         } catch (\Exception $e) {
@@ -43,10 +46,13 @@ class Client extends \GuzzleHttp\Client
         $rTime = microtime(1);
 
         // 3. 从响应结果中获取子节点的SPAN_ID
-        if (!$childSpanId = $result->getHeader('X_SPAN_ID')) {
-            $childSpanId = '';
-        } else {
-            $childSpanId = implode('; ', $childSpanId);
+        if (null === $exception && null !== $result && ($result instanceof ResponseInterface)) {
+            $childSpanId = $result->getHeader('X-SPAN-ID');
+            if (!$childSpanId) {
+                $childSpanId = '';
+            } else {
+                $childSpanId = implode('; ', $childSpanId);
+            }
         }
 
         // 4. 计算时间
