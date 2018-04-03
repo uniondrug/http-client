@@ -70,22 +70,24 @@ class Client extends \GuzzleHttp\Client
         ));
 
         // 6. 发送到中心
-        try {
-            if (Di::getDefault()->has('traceClient')) {
-                Di::getDefault()->getShared('traceClient')->send([
-                    'traceId'     => $traceId,
-                    'childSpanId' => $childSpanId,
-                    'spanId'      => $spanId,
-                    'timestamp'   => $sTime,
-                    'duration'    => $time,
-                    'cs'          => $sTime,
-                    'cr'          => $rTime,
-                    'uri'         => $uri,
-                    'error'       => $error,
-                ]);
+        if (!isset($options['no_trace']) || !$options['no_trace']) {
+            try {
+                if (Di::getDefault()->has('traceClient')) {
+                    Di::getDefault()->getShared('traceClient')->send([
+                        'traceId'     => $traceId,
+                        'childSpanId' => $childSpanId,
+                        'spanId'      => $spanId,
+                        'timestamp'   => $sTime,
+                        'duration'    => $time,
+                        'cs'          => $sTime,
+                        'cr'          => $rTime,
+                        'uri'         => $uri,
+                        'error'       => $error,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Di::getDefault()->getLogger('trace')->error(sprintf("[HttpClient] Send to trace server failed: %s", $e->getMessage()));
             }
-        } catch (\Exception $e) {
-            Di::getDefault()->getLogger('trace')->error(sprintf("[HttpClient] Send to trace server failed: %s", $e->getMessage()));
         }
 
         // 7. 返回结果
