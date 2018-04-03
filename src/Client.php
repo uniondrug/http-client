@@ -53,11 +53,10 @@ class Client extends \GuzzleHttp\Client
         $rTime = microtime(1);
 
         // 3. 从响应结果中获取子节点的SPAN_ID
+        $childSpanId = '';
         if (null === $exception && null !== $result && ($result instanceof ResponseInterface)) {
             $childSpanId = $result->getHeader('X-SPAN-ID');
-            if (!$childSpanId) {
-                $childSpanId = '';
-            } else {
+            if ($childSpanId) {
                 $childSpanId = implode('; ', $childSpanId);
             }
         }
