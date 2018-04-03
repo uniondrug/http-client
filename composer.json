@@ -1,6 +1,6 @@
 {
   "name": "uniondrug/http-client",
-  "description": "http client component for uniondrug/framework",
+  "description": "Uniondrug Http Client Component for uniondrug/framework",
   "keywords": [
     "phalcon",
     "cache"
