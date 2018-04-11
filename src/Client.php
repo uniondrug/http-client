@@ -56,7 +56,7 @@ class Client extends \GuzzleHttp\Client
         $childSpanId = '';
         if (null === $exception && null !== $result && ($result instanceof ResponseInterface)) {
             $childSpanId = $result->getHeader('X-SPAN-ID');
-            if ($childSpanId) {
+            if (is_array($childSpanId)) {
                 $childSpanId = implode('; ', $childSpanId);
             }
         }
