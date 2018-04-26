@@ -17,12 +17,13 @@ class Client extends \GuzzleHttp\Client
      * @param array  $options
      *
      * @return mixed|null|\Psr\Http\Message\ResponseInterface
-     * @throws \Exception
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function request($method, $uri = '', array $options = [])
     {
         /* @var RequestInterface $request */
         $request = Di::getDefault()->getShared('request');
+        $service = Di::getDefault()->getConfig()->path('app.appName', '');
 
         // 1. 提取当前的Trace信息，并且附加在请求头中
         $traceId = $request->getHeader('X-TRACE-ID');
@@ -65,8 +66,8 @@ class Client extends \GuzzleHttp\Client
         $time = $rTime - $sTime;
 
         // 5. LOG
-        Di::getDefault()->getLogger('trace')->debug(sprintf("[HttpClient] traceId=%s, spanId=%s, childSpanId=%s, ss=%s, sr=%s, t=%s, uri=%s, error=%s",
-            $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, $uri, $error
+        Di::getDefault()->getLogger('trace')->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, ss=%s, sr=%s, t=%s, uri=%s, error=%s",
+            $service, $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, $uri, $error
         ));
 
         // 6. 发送到中心
@@ -74,9 +75,10 @@ class Client extends \GuzzleHttp\Client
             try {
                 if (Di::getDefault()->has('traceClient')) {
                     Di::getDefault()->getShared('traceClient')->send([
+                        'service'     => $service,
                         'traceId'     => $traceId,
-                        'childSpanId' => $childSpanId,
                         'spanId'      => $spanId,
+                        'childSpanId' => $childSpanId,
                         'timestamp'   => $sTime,
                         'duration'    => $time,
                         'cs'          => $sTime,
