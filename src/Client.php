@@ -27,18 +27,16 @@ class Client extends \GuzzleHttp\Client
 
         // 1. 提取当前的Trace信息，并且附加在请求头中
         $traceId = $request->getHeader('X-TRACE-ID');
-        if ($traceId) {
-            $options['headers']['X-TRACE-ID'] = $traceId;
-        } else {
+        if (!$traceId) {
             $traceId = Di::getDefault()->getShared('security')->getRandom()->hex(10);
         }
+        $options['headers']['X-TRACE-ID'] = $traceId;
 
         $spanId = $request->getHeader('X-SPAN-ID');
-        if ($spanId) {
-            $options['headers']['X-SPAN-ID'] = $spanId;
-        } else {
+        if (!$spanId) {
             $spanId = Di::getDefault()->getShared('security')->getRandom()->hex(10);
         }
+        $options['headers']['X-SPAN-ID'] = $spanId;
 
         // 2. 发起请求
         $sTime = microtime(1);
