@@ -5,7 +5,6 @@
 
 namespace Uniondrug\HttpClient;
 
-use Phalcon\Di;
 use Phalcon\Http\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
@@ -22,19 +21,19 @@ class Client extends \GuzzleHttp\Client
     public function request($method, $uri = '', array $options = [])
     {
         /* @var RequestInterface $request */
-        $request = Di::getDefault()->getShared('request');
-        $service = Di::getDefault()->getConfig()->path('app.appName', '');
+        $request = app()->getShared('request');
+        $service = app()->getConfig()->path('app.appName', '');
 
         // 1. 提取当前的Trace信息，并且附加在请求头中
         $traceId = $request->getHeader('X-TRACE-ID');
         if (!$traceId) {
-            $traceId = Di::getDefault()->getShared('security')->getRandom()->hex(10);
+            $traceId = app()->getShared('security')->getRandom()->hex(10);
         }
         $options['headers']['X-TRACE-ID'] = $traceId;
 
         $spanId = $request->getHeader('X-SPAN-ID');
         if (!$spanId) {
-            $spanId = Di::getDefault()->getShared('security')->getRandom()->hex(10);
+            $spanId = app()->getShared('security')->getRandom()->hex(10);
         }
         $options['headers']['X-SPAN-ID'] = $spanId;
 
@@ -43,8 +42,10 @@ class Client extends \GuzzleHttp\Client
         $exception = null;
         $error = '';
         $result = null;
+        $statusCode = '';
         try {
             $result = parent::request($method, $uri, $options);
+            $statusCode = $result->getStatusCode();
         } catch (\Exception $e) {
             $error = $e->getMessage();
             $exception = $e;
@@ -64,29 +65,33 @@ class Client extends \GuzzleHttp\Client
         $time = $rTime - $sTime;
 
         // 5. LOG
-        Di::getDefault()->getLogger('trace')->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, ss=%s, sr=%s, t=%s, uri=%s, error=%s",
-            $service, $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, $uri, $error
+        logger('trace')->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, cs=%s, cr=%s, t=%s, method=%s, uri=%s, statusCode=%s, error=%s",
+            $service, $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, strtoupper($method), $uri, $statusCode, $error
         ));
 
         // 6. 发送到中心
-        if (!isset($options['no_trace']) || !$options['no_trace']) {
-            try {
-                if (Di::getDefault()->has('traceClient')) {
-                    Di::getDefault()->getShared('traceClient')->send([
-                        'service'     => $service,
-                        'traceId'     => $traceId,
-                        'spanId'      => $spanId,
-                        'childSpanId' => $childSpanId,
-                        'timestamp'   => $sTime,
-                        'duration'    => $time,
-                        'cs'          => $sTime,
-                        'cr'          => $rTime,
-                        'uri'         => $uri,
-                        'error'       => $error,
-                    ]);
+        if (config()->path('trace.enable', false)) {
+            if (!isset($options['no_trace']) || !$options['no_trace']) {
+                try {
+                    if (app()->has('traceClient')) {
+                        app()->getShared('traceClient')->send([
+                            'service'     => $service,
+                            'traceId'     => $traceId,
+                            'spanId'      => $spanId,
+                            'childSpanId' => $childSpanId,
+                            'timestamp'   => $sTime,
+                            'duration'    => $time,
+                            'cs'          => $sTime, // Client Start
+                            'cr'          => $rTime, // Client Receive
+                            'method'      => strtoupper($method),
+                            'uri'         => $uri,
+                            'statusCode'  => $statusCode,
+                            'error'       => $error,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    logger('trace')->error(sprintf("[HttpClient] Send to trace server failed: %s", $e->getMessage()));
                 }
-            } catch (\Exception $e) {
-                Di::getDefault()->getLogger('trace')->error(sprintf("[HttpClient] Send to trace server failed: %s", $e->getMessage()));
             }
         }
 
