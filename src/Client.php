@@ -7,6 +7,7 @@ namespace Uniondrug\HttpClient;
 
 use Phalcon\Http\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Uniondrug\Framework\Container;
 
 class Client extends \GuzzleHttp\Client
 {
@@ -20,20 +21,24 @@ class Client extends \GuzzleHttp\Client
      */
     public function request($method, $uri = '', array $options = [])
     {
+        $app = Container::getDefault();
+        $conf = $app->getConfig();
+        $logger = $app->getLogger('trace');
+
         /* @var RequestInterface $request */
-        $request = app()->getShared('request');
-        $service = app()->getConfig()->path('app.appName', '');
+        $request = $app->getShared('request');
+        $service = $app->getConfig()->path('app.appName', '');
 
         // 1. 提取当前的Trace信息，并且附加在请求头中
         $traceId = $request->getHeader('X-TRACE-ID');
         if (!$traceId) {
-            $traceId = app()->getShared('security')->getRandom()->hex(10);
+            $traceId = $app->getShared('security')->getRandom()->hex(10);
         }
         $options['headers']['X-TRACE-ID'] = $traceId;
 
         $spanId = $request->getHeader('X-SPAN-ID');
         if (!$spanId) {
-            $spanId = app()->getShared('security')->getRandom()->hex(10);
+            $spanId = $app->getShared('security')->getRandom()->hex(10);
         }
         $options['headers']['X-SPAN-ID'] = $spanId;
 
@@ -65,16 +70,16 @@ class Client extends \GuzzleHttp\Client
         $time = $rTime - $sTime;
 
         // 5. LOG
-        logger('trace')->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, cs=%s, cr=%s, t=%s, method=%s, uri=%s, statusCode=%s, error=%s",
+        $logger->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, cs=%s, cr=%s, t=%s, method=%s, uri=%s, statusCode=%s, error=%s",
             $service, $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, strtoupper($method), $uri, $statusCode, $error
         ));
 
         // 6. 发送到中心
-        if (config()->path('trace.enable', false)) {
+        if ($conf->path('trace.enable', false)) {
             if (!isset($options['no_trace']) || !$options['no_trace']) {
                 try {
-                    if (app()->has('traceClient')) {
-                        app()->getShared('traceClient')->send([
+                    if ($app->has('traceClient')) {
+                        $app->getShared('traceClient')->send([
                             'service'     => $service,
                             'traceId'     => $traceId,
                             'spanId'      => $spanId,
