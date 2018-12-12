@@ -1,110 +1,39 @@
 <?php
 /**
- * 封装HttpClient，加入跟踪信息，并且记录日志
+ * @author wsfuyibing <websearch@163.com>
+ * @date   2018-12-12
  */
-
 namespace Uniondrug\HttpClient;
 
-use Phalcon\Http\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-use Uniondrug\Framework\Container;
 
+/**
+ * Http请求包装
+ * @package Uniondrug\HttpClient
+ */
 class Client extends \GuzzleHttp\Client
 {
     /**
-     * @param        $method
+     * 发起HTTP请求
+     * @param string $method
      * @param string $uri
      * @param array  $options
-     *
-     * @return mixed|null|\Psr\Http\Message\ResponseInterface
-     * @throws \GuzzleHttp\Exception\GuzzleException
+     * @return ResponseInterface
+     * @throws \Throwable
      */
     public function request($method, $uri = '', array $options = [])
     {
-        $app = Container::getDefault();
-        $conf = $app->getConfig();
-        $logger = $app->getLogger('trace');
-
-        /* @var RequestInterface $request */
-        $request = $app->getShared('request');
-        $service = $app->getConfig()->path('app.appName', '');
-
-        // 1. 提取当前的Trace信息，并且附加在请求头中
-        $traceId = $request->getHeader('X-TRACE-ID');
-        if (!$traceId) {
-            $traceId = $app->getShared('security')->getRandom()->hex(10);
-        }
-        $options['headers']['X-TRACE-ID'] = $traceId;
-
-        $spanId = $request->getHeader('X-SPAN-ID');
-        if (!$spanId) {
-            $spanId = $app->getShared('security')->getRandom()->hex(10);
-        }
-        $options['headers']['X-SPAN-ID'] = $spanId;
-
-        // 2. 发起请求
-        $sTime = microtime(1);
-        $exception = null;
-        $error = '';
-        $result = null;
-        $statusCode = '';
+        $begin = microtime(true);
+        $logs = sprintf("[HttpClient][method=%s][url=%s][begin=%f]", $method, $uri, $begin);
         try {
-            $result = parent::request($method, $uri, $options);
-            $statusCode = $result->getStatusCode();
-        } catch (\Exception $e) {
-            $error = $e->getMessage();
-            $exception = $e;
-        }
-        $rTime = microtime(1);
-
-        // 3. 从响应结果中获取子节点的SPAN_ID
-        $childSpanId = '';
-        if (null === $exception && null !== $result && ($result instanceof ResponseInterface)) {
-            $childSpanId = $result->getHeader('X-SPAN-ID');
-            if (is_array($childSpanId)) {
-                $childSpanId = implode('; ', $childSpanId);
-            }
-        }
-
-        // 4. 计算时间
-        $time = $rTime - $sTime;
-
-        // 5. LOG
-        $logger->debug(sprintf("[HttpClient] service=%s, traceId=%s, spanId=%s, childSpanId=%s, cs=%s, cr=%s, t=%s, method=%s, uri=%s, statusCode=%s, error=%s",
-            $service, $traceId, $spanId, $childSpanId, $sTime, $rTime, $time, strtoupper($method), $uri, $statusCode, $error
-        ));
-
-        // 6. 发送到中心
-        if ($conf->path('trace.enable', false)) {
-            if (!isset($options['no_trace']) || !$options['no_trace']) {
-                try {
-                    if ($app->has('traceClient')) {
-                        $app->getShared('traceClient')->send([
-                            'service'     => $service,
-                            'traceId'     => $traceId,
-                            'spanId'      => $spanId,
-                            'childSpanId' => $childSpanId,
-                            'timestamp'   => $sTime,
-                            'duration'    => $time,
-                            'cs'          => $sTime, // Client Start
-                            'cr'          => $rTime, // Client Receive
-                            'method'      => strtoupper($method),
-                            'uri'         => $uri,
-                            'statusCode'  => $statusCode,
-                            'error'       => $error,
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    logger('trace')->error(sprintf("[HttpClient] Send to trace server failed: %s", $e->getMessage()));
-                }
-            }
-        }
-
-        // 7. 返回结果
-        if ($exception !== null) {
-            throw $exception;
-        } else {
-            return $result;
+            $response = parent::request($method, $uri, $options);
+            $duration = microtime(true) - $begin;
+            logger('trace')->info(sprintf("%s[duration=%.06f] %s", $logs, $duration, json_encode($options, JSON_UNESCAPED_UNICODE)));
+            return $response;
+        } catch(\Throwable $e) {
+            $duration = microtime(true) - $begin;
+            logger('trace')->error(sprintf("%s[duration=%.06f] %s", $logs, $duration, $e->getMessage()));
+            throw $e;
         }
     }
 }
