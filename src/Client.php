@@ -23,16 +23,29 @@ class Client extends \GuzzleHttp\Client
      */
     public function request($method, $uri = '', array $options = [])
     {
+        /**
+         * Header头透传
+         */
+        $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
+        if (isset($_SERVER['X-REQUESTED-ID']) && $_SERVER['X-REQUESTED-ID'] !== '') {
+            $options['headers']['X-Requested-Id'] = $_SERVER['X-REQUESTED-ID'];
+        }
+        if (isset($_SERVER['HTTP_X_REQUESTED_ID']) && $_SERVER['HTTP_X_REQUESTED_ID'] !== '') {
+            $options['headers']['HTTP_X_REQUESTED_ID'] = $_SERVER['HTTP_X_REQUESTED_ID'];
+        }
+        /**
+         * CURL/请求过程
+         */
+        logger()->debug(sprintf("HttpClient开始以{%s}请求{%s}", $method, $uri));
         $begin = microtime(true);
-        $logs = sprintf("[HttpClient][method=%s][url=%s][begin=%f]", $method, $uri, $begin);
         try {
             $response = parent::request($method, $uri, $options);
             $duration = microtime(true) - $begin;
-            logger('trace')->info(sprintf("%s[duration=%.06f] %s", $logs, $duration, json_encode($options, JSON_UNESCAPED_UNICODE)));
+            logger()->info(sprintf("HttpClient完成{%.06f秒}", $duration));
             return $response;
         } catch(\Throwable $e) {
             $duration = microtime(true) - $begin;
-            logger('trace')->error(sprintf("%s[duration=%.06f] %s", $logs, $duration, $e->getMessage()));
+            logger()->error(sprintf("HttpClient失败{%.06f秒} - %s", $duration, $e->getMessage()));
             throw $e;
         }
     }
