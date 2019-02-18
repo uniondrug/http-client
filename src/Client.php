@@ -13,6 +13,8 @@ use Psr\Http\Message\ResponseInterface;
  */
 class Client extends \GuzzleHttp\Client
 {
+    private $clientSlowLimit = 0.5;
+
     /**
      * 发起HTTP请求
      * @param string $method
@@ -36,16 +38,15 @@ class Client extends \GuzzleHttp\Client
         /**
          * CURL/请求过程
          */
-        logger()->debug(sprintf("HttpClient开始以{%s}请求{%s}", $method, $uri));
         $begin = microtime(true);
         try {
             $response = parent::request($method, $uri, $options);
-            $duration = microtime(true) - $begin;
-            logger()->info(sprintf("HttpClient完成{%.06f秒}", $duration));
+            $duration = (double) microtime(true) - $begin;
+            logger()->info(sprintf("[duration=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
             return $response;
         } catch(\Throwable $e) {
-            $duration = microtime(true) - $begin;
-            logger()->error(sprintf("HttpClient失败{%.06f秒} - %s", $duration, $e->getMessage()));
+            $duration = (double) microtime(true) - $begin;
+            logger()->error(sprintf("[duration=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $e->getMessage()));
             throw $e;
         }
     }
