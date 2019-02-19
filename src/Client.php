@@ -13,7 +13,7 @@ use Psr\Http\Message\ResponseInterface;
  */
 class Client extends \GuzzleHttp\Client
 {
-    private $clientSlowLimit = 0.5;
+    const CLIENT_SLOW_RESPONSE = 0.5;
 
     /**
      * 发起HTTP请求
@@ -42,11 +42,14 @@ class Client extends \GuzzleHttp\Client
         try {
             $response = parent::request($method, $uri, $options);
             $duration = (double) microtime(true) - $begin;
-            logger()->info(sprintf("[duration=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+            logger()->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+            if ($duration > self::CLIENT_SLOW_RESPONSE){
+                logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.06f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
+            }
             return $response;
         } catch(\Throwable $e) {
             $duration = (double) microtime(true) - $begin;
-            logger()->error(sprintf("[duration=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $e->getMessage()));
+            logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $e->getMessage()));
             throw $e;
         }
     }
