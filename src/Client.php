@@ -29,11 +29,11 @@ class Client extends \GuzzleHttp\Client
          * Header头透传
          */
         $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
-        if (isset($_SERVER['X-REQUESTED-ID']) && $_SERVER['X-REQUESTED-ID'] !== '') {
-            $options['headers']['X-Requested-Id'] = $_SERVER['X-REQUESTED-ID'];
+        if (isset($_SERVER['REQUEST-ID']) && is_string($_SERVER['REQUEST-ID']) && $_SERVER['REQUEST-ID'] !== '') {
+            $options['headers']['REQUEST-ID'] = $_SERVER['REQUEST-ID'];
         }
-        if (isset($_SERVER['HTTP_X_REQUESTED_ID']) && $_SERVER['HTTP_X_REQUESTED_ID'] !== '') {
-            $options['headers']['HTTP_X_REQUESTED_ID'] = $_SERVER['HTTP_X_REQUESTED_ID'];
+        if (isset($_SERVER['HTTP_REQUEST_ID']) && $_SERVER['HTTP_REQUEST_ID'] !== '') {
+            $options['headers']['HTTP_REQUEST_ID'] = $_SERVER['HTTP_REQUEST_ID'];
         }
         /**
          * CURL/请求过程
