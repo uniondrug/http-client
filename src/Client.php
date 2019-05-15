@@ -25,6 +25,7 @@ class Client extends \GuzzleHttp\Client
      */
     public function request($method, $uri = '', array $options = [])
     {
+        $method = strtoupper($method);
         /**
          * Header头透传
          */
@@ -43,13 +44,13 @@ class Client extends \GuzzleHttp\Client
             $response = parent::request($method, $uri, $options);
             $duration = (double) microtime(true) - $begin;
             logger()->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
-            if ($duration > self::CLIENT_SLOW_RESPONSE){
+            if ($duration > self::CLIENT_SLOW_RESPONSE) {
                 logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.06f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
             }
             return $response;
         } catch(\Throwable $e) {
             $duration = (double) microtime(true) - $begin;
-            logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $e->getMessage()));
+            logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s - %s", $duration, $method, $uri, $e->getMessage()), json_encode($options));
             throw $e;
         }
     }
