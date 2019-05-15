@@ -25,10 +25,9 @@ class Client extends \GuzzleHttp\Client
      */
     public function request($method, $uri = '', array $options = [])
     {
+        // 1. 请求方式名称统一大写
         $method = strtoupper($method);
-        /**
-         * Header头透传
-         */
+        // 2. 请求链透传
         $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
         if (isset($_SERVER['REQUEST-ID']) && is_string($_SERVER['REQUEST-ID']) && $_SERVER['REQUEST-ID'] !== '') {
             $options['headers']['REQUEST-ID'] = $_SERVER['REQUEST-ID'];
@@ -36,22 +35,29 @@ class Client extends \GuzzleHttp\Client
         if (isset($_SERVER['HTTP_REQUEST_ID']) && $_SERVER['HTTP_REQUEST_ID'] !== '') {
             $options['headers']['HTTP_REQUEST_ID'] = $_SERVER['HTTP_REQUEST_ID'];
         }
-        /**
-         * CURL/请求过程
-         */
+        // 3. 开始CURL请求
+        logger()->debug(sprintf("HttpClient以{%s}请求{%s} - %s", $method, $uri, json_encode($options, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
         $begin = microtime(true);
+        $error = null;
         try {
+            // 4. 请求成功
             $response = parent::request($method, $uri, $options);
-            $duration = (double) microtime(true) - $begin;
-            logger()->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
-            if ($duration > self::CLIENT_SLOW_RESPONSE) {
-                logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.06f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
-            }
             return $response;
         } catch(\Throwable $e) {
-            $duration = (double) microtime(true) - $begin;
-            logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s - %s", $duration, $method, $uri, $e->getMessage()), json_encode($options));
+            // 5. 请求失败
+            $error = $e->getMessage();
             throw $e;
+        } finally {
+            // 6. 请求日志
+            if ($error === null) {
+                $duration = (double) microtime(true) - $begin;
+                logger()->info(sprintf("[%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+                if ($duration > self::CLIENT_SLOW_RESPONSE) {
+                    logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.02f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
+                }
+            } else {
+                logger()->error(sprintf("HttpClient以{%s}请求{%s}出错 - %s", $method, $uri, $error));
+            }
         }
     }
 }
