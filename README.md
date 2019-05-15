@@ -1,6 +1,7 @@
 # HttpClient component for uniondrug/framework
 
-Uniondrug微服务Http客户端的封装，加入了Trace功能。
+> Uniondrug微服务Http客户端的封装，加入了Trace功能。
+
 
 ## 安装
 
@@ -30,5 +31,5 @@ return [
     $data = $this->getDI()->getShared('httpClient')->get($url);
 
     // 或者 直接使用 属性方式
-    $data = $this->httpClient()->get($url)
+    $data = $this->httpClient->get($url)
 ```
