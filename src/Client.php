@@ -56,7 +56,7 @@ class Client extends \GuzzleHttp\Client
                     logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.02f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
                 }
             } else {
-                logger()->error(sprintf("HttpClient以{%s}请求{%s}出错 - %s", $method, $uri, $error));
+                logger()->error(sprintf("[%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
             }
         }
     }
