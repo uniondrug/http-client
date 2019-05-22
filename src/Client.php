@@ -51,12 +51,12 @@ class Client extends \GuzzleHttp\Client
             // 6. 请求日志
             if ($error === null) {
                 $duration = (double) microtime(true) - $begin;
-                logger()->info(sprintf("[%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+                logger()->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
                 if ($duration > self::CLIENT_SLOW_RESPONSE) {
                     logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.02f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
                 }
             } else {
-                logger()->error(sprintf("[%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+                logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
             }
         }
     }
