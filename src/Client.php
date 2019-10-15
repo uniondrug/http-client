@@ -134,7 +134,7 @@ class Client extends \GuzzleHttp\Client
         if (self::$userAgent === null) {
             $appName = self::$container->getConfig()->path('app.appName');
             $appVersion = self::$container->getConfig()->path('app.appVersion');
-            self::$userAgent = "GuzzleHttp/".parent::VERSION;
+            self::$userAgent = "HttpClient/".self::VERSION." GuzzleHttp/".parent::VERSION;
             if ($appName !== null && $appVersion !== null) {
                 self::$userAgent .= " {$appName}/{$appVersion}";
             }
