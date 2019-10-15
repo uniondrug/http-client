@@ -1,0 +1,91 @@
+<?php
+/**
+ * @author wsfuyibing <websearch@163.com>
+ * @date   2018-12-12
+ */
+namespace Uniondrug\HttpClient;
+
+use Phalcon\Di;
+use Psr\Http\Message\ResponseInterface;
+use Uniondrug\Framework\Container;
+use Uniondrug\Phar\Server\XHttp;
+use Uniondrug\Phar\Server\XSocket;
+
+/**
+ * Http请求包装
+ * @package Uniondrug\HttpClient
+ */
+class Client extends \GuzzleHttp\Client
+{
+    const CLIENT_SLOW_RESPONSE = 0.5;
+    /**
+     * @var XHttp|XSocket
+     */
+    private static $server = null;
+    /**
+     * @var bool
+     */
+    private static $serverChecker = true;
+
+    /**
+     * 发起HTTP请求
+     * @param string $method
+     * @param string $uri
+     * @param array  $options
+     * @return ResponseInterface
+     * @throws \Throwable
+     */
+    public function request($method, $uri = '', array $options = [])
+    {
+        $error = null;
+        $begin = microtime(true);
+        // 1. 方式/名称统一大写
+        $method = strtoupper($method);
+        // 2. 读取/Server实例
+        if (self::$server === null && self::$serverChecker) {
+            self::$serverChecker = false;
+            /**
+             * 3. 读取/容器
+             * @var Container $container
+             */
+            $container = Di::getDefault();
+            if ($container instanceof Container) {
+                $instanceName = 'server';
+                if ($container->has($instanceName)) {
+                    $server = $container->getShared($instanceName);
+                    if ($server instanceof XHttp || $server instanceof XSocket) {
+                        self::$server = $server;
+                    }
+                }
+            }
+        }
+        // 4. 请求/准备发起HTTP请求
+        logger()->debug(sprintf("HttpClient以{%s}请求{%s} - %s", $method, $uri, json_encode($options, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
+        // 5. 追加/请求链
+        $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
+        if (self::$server !== null) {
+            $options['headers'] = self::$server->getTrace()->getHeaderDatas();
+        }
+        // 6. 请求过程
+        try {
+            // 7. 发送请求
+            $response = parent::request($method, $uri, $options);
+            return $response;
+        } catch(\Throwable $e) {
+            // 5. 请求失败
+            $error = $e->getMessage();
+            throw $e;
+        } finally {
+            $duration = (double) (microtime(true) - $begin);
+            // 6. 请求日志
+            if ($error === null) {
+                logger()->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+                if ($duration > self::CLIENT_SLOW_RESPONSE) {
+                    logger()->warning(sprintf("HttpClient以{%s}请求{%s}用时{%.02f}秒, 超过{%.02f}阀值", $method, $uri, $duration, self::CLIENT_SLOW_RESPONSE));
+                }
+            } else {
+                logger()->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+            }
+        }
+    }
+}
