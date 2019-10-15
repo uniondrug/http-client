@@ -5,7 +5,6 @@
  */
 namespace Uniondrug\HttpClient;
 
-use GuzzleHttp\Exception\TooManyRedirectsException;
 use Phalcon\Di;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -22,6 +21,7 @@ use Uniondrug\Phar\Server\XSocket;
 class Client extends \GuzzleHttp\Client
 {
     const SLOW_SECONDS = 0.5;
+    const VERSION = '2.4.0';
     /**
      * Server选项
      * @var Adapter|Logger
@@ -29,6 +29,11 @@ class Client extends \GuzzleHttp\Client
     private static $logger;
     private static $debugOn = true;
     private static $infoOn = true;
+    private static $userAgent;
+    /**
+     * @var Container
+     */
+    private static $container;
 
     /**
      * 发起HTTP请求
@@ -46,9 +51,13 @@ class Client extends \GuzzleHttp\Client
         $begin = microtime(true);
         $method = strtoupper($method);
         $this->initLogger();
+        $this->initUserAgent();
         // 2. init options
         $options = is_array($options) ? $options : [];
         $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
+        if (self::$userAgent !== false) {
+            $options['headers']['User-Agent'] = self::$userAgent;
+        }
         // 3. request chain
         if (isset($_SERVER['HTTP_REQUEST_ID'])) {
             $options['headers']['REQUEST-ID'] = $_SERVER['HTTP_REQUEST_ID'];
@@ -101,12 +110,11 @@ class Client extends \GuzzleHttp\Client
         }
         /**
          * 2. open container
-         * @var Container $container
          */
-        $container = Di::getDefault();
+        self::$container = Di::getDefault();
         // 3. with swoole
-        if ($container->hasSharedInstance('server')) {
-            $server = $container->getShared('server');
+        if (self::$container->hasSharedInstance('server')) {
+            $server = self::$container->getShared('server');
             if (($server instanceof XHttp) || $server instanceof XSocket) {
                 self::$logger = $server->getLogger();
                 self::$infoOn = self::$logger->infoOn();
@@ -115,6 +123,21 @@ class Client extends \GuzzleHttp\Client
             }
         }
         // 4. with php-fpm
-        self::$logger = $container->getLogger();
+        self::$logger = self::$container->getLogger();
+    }
+
+    /**
+     * 初始化UserAgent
+     */
+    private function initUserAgent()
+    {
+        if (self::$userAgent === null) {
+            $appName = self::$container->getConfig()->path('app.appName');
+            $appVersion = self::$container->getConfig()->path('app.appVersion');
+            self::$userAgent = "GuzzleHttp/".parent::VERSION;
+            if ($appName !== null && $appVersion !== null) {
+                self::$userAgent .= " {$appName}/{$appVersion}";
+            }
+        }
     }
 }
