@@ -76,17 +76,17 @@ class Client extends \GuzzleHttp\Client
             // 7. end request
             $duration = (double) (microtime(true) - $begin);
             // 8. response contents
-            if (self::$infoOn && $response !== null) {
-                $responseBody = $response->getBody();
-                if ($responseBody instanceof StreamInterface) {
-                    $contents = $responseBody->getContents();
-                    if (strlen($contents) > 3000) {
-                        $contents = substr($contents, 0, 1500).''.substr($contents, -1500);
-                    }
-                    $contents = preg_replace("/[\r|\n|\t]\s*/", "", $contents);
-                    self::$logger->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}结果 - %s", $duration, $method, $uri, $contents));
-                }
-            }
+            //            if (self::$infoOn && $response !== null) {
+            //                $responseBody = $response->getBody();
+            //                if ($responseBody instanceof StreamInterface) {
+            //                    $contents = $responseBody->getContents();
+            //                    if (strlen($contents) > 3000) {
+            //                        $contents = substr($contents, 0, 1500).''.substr($contents, -1500);
+            //                    }
+            //                    $contents = preg_replace("/[\r|\n|\t]\s*/", "", $contents);
+            //                    self::$logger->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}结果 - %s", $duration, $method, $uri, $contents));
+            //                }
+            //            }
             // 9. has error
             if ($error !== null) {
                 self::$logger->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
