@@ -1,18 +1,16 @@
 <?php
 /**
  * @author wsfuyibing <websearch@163.com>
- * @date   2019-10-14
+ * @date   2019-10-28
  */
 namespace Uniondrug\HttpClient;
 
 use Phalcon\Di;
+use Phalcon\Logger\Adapter;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamInterface;
+use Swoole\Http\Server;
 use Uniondrug\Framework\Container;
-use Uniondrug\Phar\Server\Logs\Abstracts\Adapter;
-use Uniondrug\Phar\Server\Logs\Logger;
 use Uniondrug\Phar\Server\XHttp;
-use Uniondrug\Phar\Server\XSocket;
 
 /**
  * Http请求包装
@@ -20,20 +18,29 @@ use Uniondrug\Phar\Server\XSocket;
  */
 class Client extends \GuzzleHttp\Client
 {
-    const SLOW_SECONDS = 0.5;
     const VERSION = '2.4.0';
+    const SLOW_SECONDS = 0.5;
     /**
-     * Server选项
-     * @var Adapter|Logger
+     * @var XHttp
      */
-    private static $logger;
-    private static $debugOn = true;
-    private static $infoOn = true;
-    private static $userAgent;
+    private static $server;
+    private static $serverTrace = false;
     /**
      * @var Container
      */
     private static $container;
+    /**
+     * @var Adapter
+     */
+    private static $logger;
+    private static $loggerOnDebug = true;
+    private static $loggerOnInfo = true;
+    private static $loggerOnWarn = true;
+    private static $loggerOnError = true;
+    /**
+     * @var string
+     */
+    private static $userAgent;
 
     /**
      * 发起HTTP请求
@@ -45,99 +52,130 @@ class Client extends \GuzzleHttp\Client
      */
     public function request($method, $uri = '', array $options = [])
     {
-        // 1. prepare
-        $error = null;
-        $response = null;
         $begin = microtime(true);
         $method = strtoupper($method);
-        $this->initLogger();
-        $this->initUserAgent();
-        // 2. init options
+        // 1. init options
+        $this->initContainer()->initServer()->initUserAgent()->initLogger();
+        // 2. $options
         $options = is_array($options) ? $options : [];
         $options['headers'] = isset($options['headers']) && is_array($options['headers']) ? $options['headers'] : [];
-        if (self::$userAgent !== false) {
-            $options['headers']['User-Agent'] = self::$userAgent;
-        }
-        // 3. request chain
-        if (isset($_SERVER['HTTP_REQUEST_ID'])) {
-            $options['headers']['REQUEST-ID'] = $_SERVER['HTTP_REQUEST_ID'];
-        }
-        // 4. begin
-        self::$infoOn && self::$logger->info(sprintf("HttpClient以{%s}请求{%s}开始 - %s", $method, $uri, json_encode($options, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+        $this->initHeaders($options['headers']);
+        self::$loggerOnInfo && self::$logger->info(sprintf("HttpClient以{%s}请求{%s}开始 - %s", $method, $uri, json_encode($options, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+        // 3. Request Progress
+        $error = null;
         try {
-            // 5. call parent request
+            // 4. success
             $response = parent::request($method, $uri, $options);
             return $response;
         } catch(\Throwable $e) {
-            // 6. catch exception
+            // 5. failure
             $error = $e->getMessage();
             throw $e;
         } finally {
-            // 7. end request
+            // 6. end request
             $duration = (double) (microtime(true) - $begin);
-            // 8. response contents
-            //            if (self::$infoOn && $response !== null) {
-            //                $responseBody = $response->getBody();
-            //                if ($responseBody instanceof StreamInterface) {
-            //                    $contents = $responseBody->getContents();
-            //                    if (strlen($contents) > 3000) {
-            //                        $contents = substr($contents, 0, 1500).''.substr($contents, -1500);
-            //                    }
-            //                    $contents = preg_replace("/[\r|\n|\t]\s*/", "", $contents);
-            //                    self::$logger->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}结果 - %s", $duration, $method, $uri, $contents));
-            //                }
-            //            }
-            // 9. has error
+            // 7. has error
             if ($error !== null) {
-                self::$logger->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+                self::$loggerOnError && self::$logger->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
             } else if ($duration >= self::SLOW_SECONDS) {
-                self::$logger->warning(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}较慢, 超过{%s}秒阀值", $duration, $method, $uri, self::SLOW_SECONDS));
+                self::$loggerOnWarn && self::$logger->warning(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}较慢, 超过{%s}秒阀值", $duration, $method, $uri, self::SLOW_SECONDS));
             }
-            // 10. 完成
-            self::$infoOn && self::$logger->info(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
+            // 8. Completed
+            self::$loggerOnDebug && self::$logger->debug(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}完成", $duration, $method, $uri));
         }
     }
 
     /**
-     * 初始化Logger实例
-     * @return void
+     * @return $this
+     */
+    private function initContainer()
+    {
+        if (self::$container === null) {
+            self::$container = Di::getDefault();
+        }
+        return $this;
+    }
+
+    /**
+     * @return $this
      */
     private function initLogger()
     {
-        // 1. initialized
-        if (self::$logger !== null) {
-            return;
-        }
-        /**
-         * 2. open container
-         */
-        self::$container = Di::getDefault();
-        // 3. with swoole
-        if (self::$container->hasSharedInstance('server')) {
-            $server = self::$container->getShared('server');
-            if (($server instanceof XHttp) || $server instanceof XSocket) {
-                self::$logger = $server->getLogger();
-                self::$infoOn = self::$logger->infoOn();
-                self::$debugOn = self::$logger->debugOn();
-                return;
+        if (self::$logger === null) {
+            if (self::$server) {
+                self::$logger = self::$server->getLogger();
+                self::$loggerOnDebug = self::$logger->debugOn();
+                self::$loggerOnInfo = self::$logger->infoOn();
+                self::$loggerOnWarn = self::$logger->warningOn();
+                self::$loggerOnError = self::$logger->errorOn();
+            } else {
+                self::$logger = self::$container->getLogger();
             }
         }
-        // 4. with php-fpm
-        self::$logger = self::$container->getLogger();
+        return $this;
     }
 
     /**
-     * 初始化UserAgent
+     * @param array $headers
+     * @return $this
+     */
+    private function initHeaders(& $headers)
+    {
+        // 1. Request Chain
+        if (self::$serverTrace) {
+            // 1.1 新模式/兼容Java请求链
+            //    X-B3-Traceid
+            //    X-B3-Spanid
+            //    X-B3-Parentspanid
+            //    X-B3-Sampled
+            $headers = array_merge($headers, self::$server->getTrace()->getAppendTrace());
+            $headers['REQUEST-ID'] = self::$server->getTrace()->getRequestId();
+        } else {
+            // 1.2 兼容HttpClient
+            if (isset($_SERVER['HTTP_REQUEST_ID']) && is_string($_SERVER['HTTP_REQUEST_ID']) && $_SERVER['HTTP_REQUEST_ID'] !== '') {
+                $headers['REQUEST-ID'] = $_SERVER['HTTP_REQUEST_ID'];
+            } else if (isset($_SERVER['REQUEST-ID']) && is_string($_SERVER['REQUEST-ID']) && $_SERVER['REQUEST-ID'] !== '') {
+                $headers['REQUEST-ID'] = $_SERVER['REQUEST-ID'];
+            }
+        }
+        // 2. User Agent
+        $headers['User-Agent'] = self::$userAgent;
+        // 3. nest
+        return $this;
+    }
+
+    /**
+     * Server
+     * @return $this
+     */
+    private function initServer()
+    {
+        if (self::$server === null) {
+            $server = self::$container->getShared('server');
+            if ($server instanceof Server) {
+                self::$server = $server;
+                self::$serverTrace = method_exists($server, 'getTrace');
+                return $this;
+            }
+        }
+        self::$server = false;
+        return $this;
+    }
+
+    /**
+     * UA名称
+     * @return $this
      */
     private function initUserAgent()
     {
         if (self::$userAgent === null) {
-            $appName = self::$container->getConfig()->path('app.appName');
-            $appVersion = self::$container->getConfig()->path('app.appVersion');
+            $appName = (string) self::$container->getConfig()->path('app.appName');
+            $appVersion = (string) self::$container->getConfig()->path('app.appVersion');
             self::$userAgent = "HttpClient/".self::VERSION." GuzzleHttp/".parent::VERSION;
-            if ($appName !== null && $appVersion !== null) {
-                self::$userAgent .= " {$appName}/{$appVersion}";
+            if ($appName !== '' && $appVersion !== '') {
+                self::$userAgent .= " ".$appName."/".$appVersion;
             }
         }
+        return $this;
     }
 }
