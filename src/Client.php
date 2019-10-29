@@ -150,15 +150,20 @@ class Client extends \GuzzleHttp\Client
      */
     private function initServer()
     {
-        if (self::$server === null) {
-            $server = self::$container->getShared('server');
-            if ($server instanceof Server) {
-                self::$server = $server;
-                self::$serverTrace = method_exists($server, 'getTrace');
-                return $this;
-            }
+        // 1. inited
+        if (self::$server !== null) {
+            return $this;
         }
+        // 2. in swoole
+        $server = self::$container->getShared('server');
+        if ($server instanceof Server) {
+            self::$server = $server;
+            self::$serverTrace = method_exists($server, 'getTrace');
+            return $this;
+        }
+        // 3. fpm
         self::$server = false;
+        self::$serverTrace = false;
         return $this;
     }
 
