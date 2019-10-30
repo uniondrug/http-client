@@ -155,11 +155,13 @@ class Client extends \GuzzleHttp\Client
             return $this;
         }
         // 2. in swoole
-        $server = self::$container->getShared('server');
-        if ($server instanceof Server) {
-            self::$server = $server;
-            self::$serverTrace = method_exists($server, 'getTrace');
-            return $this;
+        if (self::$container->hasSharedInstance('server')) {
+            $server = self::$container->getShared('server');
+            if ($server instanceof Server) {
+                self::$server = $server;
+                self::$serverTrace = method_exists($server, 'getTrace');
+                return $this;
+            }
         }
         // 3. fpm
         self::$server = false;
