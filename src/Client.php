@@ -155,7 +155,7 @@ class Client extends \GuzzleHttp\Client
             return $this;
         }
         // 2. in swoole
-        if (self::$container->hasSharedInstance('server')) {
+        if (self::$container->has('server')) {
             $server = self::$container->getShared('server');
             if ($server instanceof Server) {
                 self::$server = $server;
