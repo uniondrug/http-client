@@ -18,7 +18,7 @@ use Uniondrug\Phar\Server\XHttp;
  */
 class Client extends \GuzzleHttp\Client
 {
-    const VERSION = '2.4.0';
+    const VERSION = '2.4.2';
     const SLOW_SECONDS = 0.5;
     /**
      * @var XHttp
