@@ -18,7 +18,7 @@ use Uniondrug\Phar\Server\XHttp;
  */
 class Client extends \GuzzleHttp\Client
 {
-    const VERSION = '2.4.2';
+    const VERSION = '2.4.3';
     const SLOW_SECONDS = 0.5;
     /**
      * @var XHttp
@@ -37,6 +37,7 @@ class Client extends \GuzzleHttp\Client
     private static $loggerOnInfo = true;
     private static $loggerOnWarn = true;
     private static $loggerOnError = true;
+    private static $ignoreError = false;
     /**
      * @var string
      */
@@ -76,7 +77,13 @@ class Client extends \GuzzleHttp\Client
             $duration = (double) (microtime(true) - $begin);
             // 7. has error
             if ($error !== null) {
-                self::$loggerOnError && self::$logger->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+                if (self::$loggerOnError) {
+                    if (self::$ignoreError) {
+                        self::$logger->warning(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+                    } else {
+                        self::$logger->error(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}出错 - %s", $duration, $method, $uri, $error));
+                    }
+                }
             } else if ($duration >= self::SLOW_SECONDS) {
                 self::$loggerOnWarn && self::$logger->warning(sprintf("[d=%.06f]HttpClient以{%s}请求{%s}较慢, 超过{%s}秒阀值", $duration, $method, $uri, self::SLOW_SECONDS));
             }
@@ -102,6 +109,9 @@ class Client extends \GuzzleHttp\Client
     private function initLogger()
     {
         if (self::$logger === null) {
+            if (defined("IGNORE_HTTP_CLIENT_ERROR") && IGNORE_HTTP_CLIENT_ERROR === true) {
+                self::$ignoreError = true;
+            }
             if (self::$server) {
                 self::$logger = self::$server->getLogger();
                 self::$loggerOnDebug = self::$logger->debugOn();
