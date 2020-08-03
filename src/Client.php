@@ -18,7 +18,7 @@ use Uniondrug\Phar\Server\XHttp;
  */
 class Client extends \GuzzleHttp\Client
 {
-    const VERSION = '2.4.4';
+    const VERSION = '2.5.0';
     const SLOW_SECONDS = 0.5;
     /**
      * @var XHttp
@@ -150,7 +150,12 @@ class Client extends \GuzzleHttp\Client
         }
         // 2. User Agent
         $headers['User-Agent'] = self::$userAgent;
-        // 3. nest
+        // 3. Gray Control
+        if (isset($_SERVER['HTTP_X_GRAY_ID'])) {
+            $gray = trim($_SERVER['HTTP_X_GRAY_ID']);
+            $gray === "" && $gray = microtime(true);
+            $headers['X-Gray-Id'] = "{$gray}";
+        }
         return $this;
     }
 
